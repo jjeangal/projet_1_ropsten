@@ -119,11 +119,6 @@ contract Voting is Ownable {
         setWinner();
     }
 
-    /// @notice Restart voting session
-    function restartSession() public onlyOwner {
-        //proposalsList = Proposal[];
-    }
-
     /// @notice Add a voter to the session
     /// @param _voterAddress The address of the voter to be added
     function addVoter(address _voterAddress) public onlyOwner atStage(WorkflowStatus(0)) {
