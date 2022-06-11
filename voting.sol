@@ -196,6 +196,7 @@ contract Voting is Ownable {
     /// @param _proposalId The id of the proposal to be voted for
     function changeVote(uint _proposalId) public beVoter(msg.sender) atStage(WorkflowStatus(3)) {
         require(votersList[msg.sender].hasVoted == true, "There is no vote to be changed.");
+        require(_proposalId <= _proposalCounter.current() - 1, "This proposal doesn't exist.");  
         
         uint currentId = getVotedProposal(msg.sender);
         proposalsList[currentId].voteCount--;
