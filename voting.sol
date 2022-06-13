@@ -132,7 +132,6 @@ contract Voting is Ownable {
         for (int i = voterArraySize - 1; i >= 0; i--) {
             temp = voterAddresses[uint(i)];
             removeVoter(temp);
-            delete voterAddresses[uint(i)];
             voterAddresses.pop();
         }
         winningProposalId = 0;
