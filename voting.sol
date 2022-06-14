@@ -114,7 +114,7 @@ contract Voting is Ownable {
     }
 
     /// @notice Start the vote tally phase of the voting session and set the winner
-    function openVoteTally() public onlyOwner atStage(WorkflowStatus(4)) {
+    function startVoteTally() public onlyOwner atStage(WorkflowStatus(4)) {
         status = WorkflowStatus.VotesTallied;
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded, status);
         setWinner();
@@ -194,16 +194,16 @@ contract Voting is Ownable {
         proposalsList[_proposalId-1].voteCount++;
     }
 
-    /// @notice Returns the current status of the session
-    /// @dev Function returns a uint corresponding to a status
-    function getStatus() public view returns(WorkflowStatus) {
-        return status;
-    }
-
     /// @notice Returns the winner of the vote.
     function getWinner() public view atStage(WorkflowStatus(5)) returns(uint) {
         require(winningProposalId != 0, "No winner was chosen.");
         return winningProposalId;
+    }
+
+    /// @notice Returns the current status of the session
+    /// @dev Function returns a uint corresponding to a status
+    function getStatus() public view returns(WorkflowStatus) {
+        return status;
     }
 
     /// @notice Return the list containing all voters addresses
