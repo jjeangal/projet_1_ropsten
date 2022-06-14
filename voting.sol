@@ -218,7 +218,7 @@ contract Voting is Ownable {
 
     /// @notice Returns the id of the proposal for which the voter voted for
     /// @param _voterAddress The adress of the voter
-    function getVotersVote(address _voterAddress) public view beVoter(msg.sender) returns(uint) {
+    function getVotedProposal(address _voterAddress) public view beVoter(msg.sender) returns(uint) {
         require(votersList[_voterAddress].hasVoted == true, "Voter did not vote.");
         return votersList[_voterAddress].votedProposalId;
     }
@@ -275,12 +275,6 @@ contract Voting is Ownable {
         emit ProposalDraw(id1, id2);
         /// To be developed
         return id1;
-    }
-
-    /// @notice Returns the id of the voted proposal
-    /// @param _voterAddress The address of the voter
-    function getVotedProposal(address _voterAddress) private view returns (uint) {
-        return votersList[_voterAddress].votedProposalId;
     }
 
     /// @notice Verify if the passed address corresponds to a voter
