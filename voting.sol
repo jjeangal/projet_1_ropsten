@@ -160,7 +160,8 @@ contract Voting is Ownable {
 
     /// @notice Add a proposal to the list of all proposals
     /// @param _description The description of the proposal to be added
-    function addProposal(string calldata _description) public beVoter(msg.sender) atStage(WorkflowStatus(1)) {
+    function addProposal(string calldata _description) public beVoter(msg.sender) atStage(
+        WorkflowStatus(1)) {
         uint256 newId = _proposalCounter.current();
         _proposalCounter.increment();
         proposalsList.push(Proposal(_description, 0));
@@ -212,13 +213,15 @@ contract Voting is Ownable {
 
     /// @notice Return the voter's information
     /// @param _voterAddress The address of the voter
-    function getVoter(address _voterAddress) public view beVoter(msg.sender) returns(Voter memory) {
+    function getVoter(address _voterAddress) public view beVoter(msg.sender) returns(
+        Voter memory) {
         return (votersList[_voterAddress]);
     }
 
     /// @notice Returns the id of the proposal for which the voter voted for
     /// @param _voterAddress The adress of the voter
-    function getVotedProposal(address _voterAddress) public view beVoter(msg.sender) returns(uint) {
+    function getVotedProposal(address _voterAddress) public view beVoter(
+        msg.sender) returns(uint) {
         require(votersList[_voterAddress].hasVoted == true, "Voter did not vote.");
         return votersList[_voterAddress].votedProposalId;
     }
