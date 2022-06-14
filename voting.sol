@@ -250,7 +250,7 @@ contract Voting is Ownable {
                 pos = i;                                             
             }
             if(proposalsList[i].voteCount == proposalsList[pos].voteCount) {
-                pos = handleEquality(pos, i);
+                pos = handleDraw(pos, i);
             }
         }
         if (numberOfProposals > 0 && proposalsList[pos].voteCount > 0) {
@@ -274,7 +274,7 @@ contract Voting is Ownable {
     /// @notice Brakes draws between two proposals
     /// @param id1 id2 The ids of the two proposals to compare
     /// @return The id of the oldest proposal (for now)
-    function handleEquality(uint id1, uint id2) private returns (uint) {
+    function handleDraw(uint id1, uint id2) private returns (uint) {
         emit ProposalDraw(id1, id2);
         /// To be developed
         return id1;
