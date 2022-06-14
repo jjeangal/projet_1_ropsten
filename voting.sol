@@ -23,8 +23,6 @@ contract Voting is Ownable {
     event VoterRegistered(address voterAddress); 
     /// Event to be triggered when a voter gets unregistered and can't vote in the current session  
     event VoterUnregistered(address voterAddress); 
-    /// Event to be triggered when a voter get's removed
-    event VoterRemoved(address voterAddress);
     /// Event to be triggered when a proposal gets registered 
     event ProposalRegistered(uint proposalId);
     /// Event to be triggered when a voter votes
@@ -55,8 +53,6 @@ contract Voting is Ownable {
         VotesTallied                    // 5
     }
 
-    /// Returns true if address is linked to a voter
-    mapping(address => bool) whitelist;
     /// Maps addresses of voters to Voter structs
     mapping(address => Voter) votersList;
     /// Keep a list of proposals
@@ -77,6 +73,7 @@ contract Voting is Ownable {
 
     /* @notice  Modifier to attach when a status can only be changed from one specific 
     *           status to another
+    *  @param   _status The status from which there can be a transition
     */
     modifier atStage(WorkflowStatus _status) {
         require(
@@ -88,7 +85,7 @@ contract Voting is Ownable {
 
     /// @notice Address must be associated with existing voter
     modifier beVoter(address _voterAddress) {
-        require(isVoter(_voterAddress), "Must be a voter.");
+        require(isVoter(_voterAddress), "Not a voter.");
         _;
     }
 
@@ -123,16 +120,21 @@ contract Voting is Ownable {
         setWinner();
     }
 
-    /// @notice Reinitialize the voting session (proposals, voters, votes, winner)
-    function restartVotingSession() public onlyOwner atStage(WorkflowStatus(5)) {
-        require(voterAddresses.length > 0, "No voters to remove.");
-        int voterArraySize = int(voterAddresses.length);
+    /// @notice Restart the voting session
+    /// @dev Reinitialize proposals, votes, the winner & voters if wanted
+    /// @param removeVoters A bool value that defines if voters should be removed from session
+    function restartVotingSession(bool removeVoters) public onlyOwner atStage(WorkflowStatus(5)) {
         status = WorkflowStatus(0);
+        int voterArraySize = int(voterAddresses.length);
         address temp;
         for (int i = voterArraySize - 1; i >= 0; i--) {
             temp = voterAddresses[uint(i)];
-            removeVoter(temp);
-            voterAddresses.pop();
+            if (removeVoters) {
+                removeVoter(temp);
+                voterAddresses.pop();
+            } else {
+                votersList[temp] = Voter(true, false, 0);
+            }
         }
         winningProposalId = 0;
         deleteAllProposals();
@@ -141,48 +143,24 @@ contract Voting is Ownable {
     /// @notice Add a voter to the session
     /// @param _voterAddress The address of the voter to be added
     function addVoter(address _voterAddress) public onlyOwner atStage(WorkflowStatus(0)) {
-        require(whitelist[_voterAddress] == false, "Voter already takes part in the session.");
-        whitelist[_voterAddress] = true;
+        require(votersList[_voterAddress].isRegistered == false, "Voter already takes part in the session.");
         votersList[_voterAddress].isRegistered = true;
-        votersList[_voterAddress].hasVoted = false;
         voterAddresses.push(_voterAddress);
         emit VoterRegistered(_voterAddress);
     }
 
-    /// @notice Remove voter from the session.
-    /// @dev Can only be called at the start of the voting session, then opt for unregistering them
-    /// @param _voterAddress The address of the voter to be removed
-    function removeVoter(address _voterAddress) public onlyOwner beVoter(_voterAddress) atStage(WorkflowStatus(0)) {
-        whitelist[_voterAddress] = false;
-        delete votersList[_voterAddress];
-        emit VoterRemoved(_voterAddress);
-    }
-
     /// @notice Unregister a voter without deleting him from the session
-    /// @dev If votes have not been tallied & voter has voted, cancels the current proposal vote
     /// @param _voterAddress The address of the voter to be unregistered
-    function unregisterVoter(address _voterAddress) public onlyOwner beVoter(_voterAddress) atStage(WorkflowStatus(0)) {
-        require(votersList[_voterAddress].isRegistered == true, "Voter is already unregistered.");
-        votersList[_voterAddress].isRegistered = false;
-        if (status != WorkflowStatus(5) && votersList[_voterAddress].hasVoted == true) {
-            removeVoteOf(_voterAddress);
-            votersList[_voterAddress].hasVoted = false;
+    function removeVoter(address _voterAddress) public onlyOwner atStage(WorkflowStatus(0)) {
+        if (votersList[_voterAddress].isRegistered == true) {
+            votersList[_voterAddress] = Voter(false, false, 0);
+            emit VoterUnregistered(_voterAddress);
         }
-        emit VoterUnregistered(_voterAddress);
-    }
-
-    /// @notice Register back a voter to the voting session
-    /// @param _voterAddress The address of the voter to be registered
-    function registerVoter(address _voterAddress) public onlyOwner beVoter(_voterAddress) atStage(WorkflowStatus(0)) {
-        require(votersList[_voterAddress].isRegistered == false, "Voter is already registered.");
-        votersList[_voterAddress].isRegistered = true;
-        emit VoterRegistered(_voterAddress);
     }
 
     /// @notice Add a proposal to the list of all proposals
     /// @param _description The description of the proposal to be added
     function addProposal(string calldata _description) public beVoter(msg.sender) atStage(WorkflowStatus(1)) {
-        require(votersList[msg.sender].isRegistered == true, "You must be a registered voter.");
         uint256 newId = _proposalCounter.current();
         _proposalCounter.increment();
         proposalsList.push(Proposal(_description, 0));
@@ -193,10 +171,9 @@ contract Voting is Ownable {
     /// @dev Voter must exist and be registered
     /// @param _proposalId The id of the proposal to be voted for
     function vote(uint _proposalId) public beVoter(msg.sender) atStage(WorkflowStatus(3)) {
-        require(votersList[msg.sender].isRegistered == true, "You must be a registered voter to vote.");
         require(votersList[msg.sender].hasVoted == false, "You have already voted.");
         require(_proposalId <= _proposalCounter.current() - 1, "This proposal doesn't exist.");
-        require(_proposalId != 0, "The id 0 does not exist");        
+        require(_proposalId != 0, "Proposal 0 does not exist");        
 
         proposalsList[_proposalId-1].voteCount += 1;
         votersList[msg.sender].votedProposalId = _proposalId;
@@ -205,11 +182,12 @@ contract Voting is Ownable {
     }
 
     /// @notice Allows a voter to revoke is vote for another
-    /// @dev 
+    /// @dev Calls a private function to lower voteCount of first voted proposal
     /// @param _proposalId The id of the proposal to be voted for
     function changeVote(uint _proposalId) public beVoter(msg.sender) atStage(WorkflowStatus(3)) {
         require(votersList[msg.sender].hasVoted == true, "There is no vote to be changed.");
-        require(_proposalId <= _proposalCounter.current() - 1, "This proposal doesn't exist.");  
+        require(_proposalId <= _proposalCounter.current() - 1, "This proposal doesn't exist."); 
+        require(_proposalId != 0, "Proposal 0 does not exist");    
         removeVoteOf(msg.sender);
         votersList[msg.sender].votedProposalId = _proposalId;
         proposalsList[_proposalId-1].voteCount++;
@@ -227,17 +205,20 @@ contract Voting is Ownable {
         return winningProposalId;
     }
 
-    /// @notice Return the voter's information (verifier si pas mieux de juste return voter et pas ses caractéristiques)
+    /// @notice Return the list containing all voters addresses
+    function getVoters() public view returns(address[] memory) {
+        return voterAddresses;
+    }
+
+    /// @notice Return the voter's information
     /// @param _voterAddress The address of the voter
-    /// @return The voter (informations or object)
-    function getVoter(address _voterAddress) public view beVoter(_voterAddress) returns(Voter memory) {
+    function getVoter(address _voterAddress) public view beVoter(msg.sender) returns(Voter memory) {
         return (votersList[_voterAddress]);
     }
 
     /// @notice Returns the id of the proposal for which the voter voted for
     /// @param _voterAddress The adress of the voter
-    function getVotersVote(address _voterAddress) public view beVoter(_voterAddress) returns(uint) {
-        require(whitelist[msg.sender] == true, "You must be a voter to get that information.");
+    function getVotersVote(address _voterAddress) public view beVoter(msg.sender) returns(uint) {
         require(votersList[_voterAddress].hasVoted == true, "Voter did not vote.");
         return votersList[_voterAddress].votedProposalId;
     }
@@ -248,26 +229,12 @@ contract Voting is Ownable {
     function getProposal(uint _proposalId) public view returns (Proposal memory) {
         require(_proposalId < _proposalCounter.current(), "This proposal doesn't exist.");
         require(_proposalId != 0, "The proposal 0 is not defined.");
-
         return (proposalsList[_proposalId-1]);
     }
 
     /// @notice Returns the list of all proposals
     function getAllProposals() public view returns (Proposal[] memory) {
         return proposalsList;
-    }
-
-    /// @notice Delete all existing proposals
-    function deleteAllProposals() private onlyOwner {
-        _proposalCounter.reset();
-        _proposalCounter.increment();
-        delete proposalsList;
-    }
-
-    /// @notice Lowers the vote count of the voter's voted proposal
-    function removeVoteOf(address _voterAddress) private {
-        uint currentId = getVotedProposal(_voterAddress);
-        proposalsList[currentId-1].voteCount--;
     }
 
     /// @notice Sets the winner of the voting session
@@ -288,6 +255,19 @@ contract Voting is Ownable {
         }  
     }
 
+    /// @notice Delete all existing proposals
+    function deleteAllProposals() private onlyOwner {
+        _proposalCounter.reset();
+        _proposalCounter.increment();
+        delete proposalsList;
+    }
+
+    /// @notice Lowers the vote count of the voter's voted proposal
+    function removeVoteOf(address _voterAddress) private {
+        uint currentId = getVotedProposal(_voterAddress);
+        proposalsList[currentId-1].voteCount--;
+    }
+
     /// @notice Brakes draws between two proposals
     /// @param id1 id2 The ids of the two proposals to compare
     /// @return The id of the oldest proposal (for now)
@@ -298,7 +278,6 @@ contract Voting is Ownable {
     }
 
     /// @notice Returns the id of the voted proposal
-    /// @dev Not attaching the beVoter modifier because already checked in function call
     /// @param _voterAddress The address of the voter
     function getVotedProposal(address _voterAddress) private view returns (uint) {
         return votersList[_voterAddress].votedProposalId;
@@ -308,7 +287,6 @@ contract Voting is Ownable {
     /// @param _voterAddress The address to be verified
     /// @return True if address is associated to a voter
     function isVoter(address _voterAddress) private view returns (bool) {
-        return whitelist[_voterAddress];
+        return votersList[_voterAddress].isRegistered;
     }
 }
-
