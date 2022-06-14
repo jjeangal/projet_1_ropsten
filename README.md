@@ -1,7 +1,7 @@
 # Premier Defi Formation Ropsten
 Contrat de vote
 
-Explication des fonctionnalités ajoutés:
+Explication des fonctionnalités:
 
 
 Deux events rajoutés:
